@@ -38,7 +38,7 @@
     "documentation"
   ],
   "dependencies": {
-    "pareto-core": "^0.1.319",
+    "pareto-core": "^0.1.320",
     "pareto-fountain-pen": "^0.4.0"
   }
 }
