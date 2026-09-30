@@ -1,9 +1,9 @@
 {
-  "name": "astn-core",
-  "version": "0.5.158",
+  "name": "astn-runtime",
+  "version": "0.1.1",
   "author": "Corno",
   "license": "Apache-2.0",
-  "description": "The TypeScript library for parsing and formatting ASTN (Abstract Syntax Tree Notation) - a human-editable data format for structured content",
+  "description": "The TypeScript runtime library for parsing and formatting ASTN (Abstract Syntax Tree Notation) - a human-editable data format for structured content",
   "keywords": [
     "astn",
     "parser",
@@ -16,13 +16,13 @@
     "configuration",
     "serialization"
   ],
-  "homepage": "https://github.com/corno/astn-core#readme",
+  "homepage": "https://github.com/corno/astn-runtime#readme",
   "bugs": {
-    "url": "https://github.com/corno/astn-core/issues"
+    "url": "https://github.com/corno/astn-runtime/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/corno/astn-core.git"
+    "url": "git+https://github.com/corno/astn-runtime.git"
   },
   "type": "module",
   "exports": {
