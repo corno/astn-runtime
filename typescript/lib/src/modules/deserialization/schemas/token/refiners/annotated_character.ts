@@ -287,20 +287,14 @@ export const Delimited_Text: p_.Production_With_Parameter<
                                     case Character.r: return Character.carriage_return
                                     case Character.t: return Character.tab
                                     case Character.u:
-                                        const r_hexadecimal: p_.Refiner<
+                                        const r_unicode_code_unit: p_.Refiner<
                                             number,
                                             string,
                                             p_schema.List<number>
                                         > = ($, abort) => {
                                             const characters = $
                                             let result = 0
-                                            let isNegative = false
-                                            let startIndex = 0
-
-                                            // Check for empty string
-                                            if (p_t.from.list(characters).amount_of_items() === 0) {
-                                                abort("empty string is not a valid hexadecimal number")
-                                            }
+                                            const amount_of_characters = p_t.from.list(characters).amount_of_items()
 
                                             const get_character_at = (index: number): number => {
                                                 return characters.__deprecated_get_item_at(
@@ -311,31 +305,10 @@ export const Delimited_Text: p_.Production_With_Parameter<
                                                 )
                                             }
 
-                                            // Check for negative sign
-                                            if (p_t.from.list(characters).amount_of_items() > 0 && get_character_at(0) === 45) { // '-'
-                                                isNegative = true
-                                                startIndex = 1
-                                            }
-
-                                            // Check for "0x" prefix - REQUIRE it for hex
-                                            if (p_t.from.list(characters).amount_of_items() <= startIndex + 1 ||
-                                                get_character_at(startIndex) !== 48 || // '0'
-                                                get_character_at(startIndex + 1) !== 120) { // 'x'
-                                                abort("Hexadecimal number must have '0x' prefix")
-                                            }
-                                            startIndex += 2
-
-                                            // Check if there are digits after the prefix
-                                            if (startIndex >= p_t.from.list(characters).amount_of_items()) {
-                                                abort("Hexadecimal number must have digits after '0x' prefix")
-                                            }
-
-                                            // Parse hex digits from left to right
-                                            for (let i = startIndex; i < p_t.from.list(characters).amount_of_items(); i++) {
+                                            for (let i = 0; i < amount_of_characters; i++) {
                                                 const charCode = get_character_at(i)
                                                 let digit: number
 
-                                                // Check if character is a hex digit
                                                 if (charCode >= 48 && charCode <= 57) { // '0'-'9'
                                                     digit = charCode - 48
                                                 } else if (charCode >= 65 && charCode <= 70) { // 'A'-'F'
@@ -343,14 +316,13 @@ export const Delimited_Text: p_.Production_With_Parameter<
                                                 } else if (charCode >= 97 && charCode <= 102) { // 'a'-'f'
                                                     digit = charCode - 97 + 10
                                                 } else {
-                                                    // Invalid character
-                                                    return abort("Invalid character in hexadecimal string")
+                                                    return abort("Invalid hexadecimal digit in Unicode escape")
                                                 }
 
                                                 result = result * 16 + digit
                                             }
 
-                                            return isNegative ? -result : result
+                                            return result
                                         }
                                         const consume_char = (): number => iterator.consume(
                                             ($) => abort({
@@ -359,7 +331,7 @@ export const Delimited_Text: p_.Production_With_Parameter<
                                             }),
                                             ($) => $.code,
                                         )
-                                        return r_hexadecimal(
+                                        return r_unicode_code_unit(
                                             p_.literal.list([
                                                 consume_char(),
                                                 consume_char(),
