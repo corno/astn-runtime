@@ -57,19 +57,17 @@ export const Annotated_Characters: declarations.Annotated_Characters = ($, $p) =
             : state.location.relative.column,
     }),
     (value, state) => {
-        return value.code === 0x0A /* line feed */
+        // A line feed directly after a carriage return does not start another line.
+        return value.code === 0x0A /* line feed */ && state['found carriage return before']
             ? {
                 'location': {
                     'absolute': state.location.absolute + 1,
-                    'relative': {
-                        'line': state.location.relative.line + 1,
-                        'column': 0,
-                    }
+                    'relative': state.location.relative,
                 },
                 'line indentation': null,
                 'found carriage return before': false,
             }
-            : state['found carriage return before']
+            : value.code === 0x0A /* line feed */ || value.code === 0x0D /* carriage return */
                 ? {
                     'location': {
                         'absolute': state.location.absolute + 1,
@@ -80,7 +78,7 @@ export const Annotated_Characters: declarations.Annotated_Characters = ($, $p) =
                     },
 
                     'line indentation': null,
-                    'found carriage return before': false,
+                    'found carriage return before': value.code === 0x0D /* carriage return */,
                 }
                 : {
                     'location': {

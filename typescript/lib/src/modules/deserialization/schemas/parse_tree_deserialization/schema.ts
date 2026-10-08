@@ -64,6 +64,10 @@ export namespace Lexer_Error_ {
         export type unicode_character = {
             readonly 'found': unicode_character.found
         }
+
+        export type surrogate_pair = {
+            readonly 'found': number
+        }
         
         export type block_comment_termination = null
         
@@ -75,6 +79,7 @@ export namespace Lexer_Error_ {
         | readonly ['no end of line in text', expected.no_end_of_line_in_text]
         | readonly ['escape character', expected.escape_character]
         | readonly ['unicode character', expected.unicode_character]
+        | readonly ['surrogate pair', expected.surrogate_pair]
         | readonly ['block comment termination', expected.block_comment_termination]
         | readonly ['text termination', expected.text_termination]
     

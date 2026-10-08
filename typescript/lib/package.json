@@ -1,6 +1,6 @@
 {
   "name": "astn-runtime",
-  "version": "0.1.1",
+  "version": "0.1.4",
   "author": "Corno",
   "license": "Apache-2.0",
   "description": "The TypeScript runtime library for parsing and formatting ASTN (Abstract Syntax Tree Notation) - a human-editable data format for structured content",

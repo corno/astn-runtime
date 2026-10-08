@@ -113,7 +113,7 @@ export const Trivia: p_.Production<
         handle: () => {
             return iterator.consume( // discard the first slash
                 () => p_unreachable_code_path("has_more_items -> true"),
-                ($) => iterator.peek(
+                (first_slash) => iterator.peek(
                     () => p_unreachable_code_path("has_more_items -> true"),
                     ($) => {
                         switch ($.code) {
@@ -133,7 +133,7 @@ export const Trivia: p_.Production<
                                             }),
                                             ($) => $
                                         ),
-                                        'range': create_range(iterator, { 'start character': $ }),
+                                        'range': create_range(iterator, { 'start character': first_slash }),
                                         'trailing whitespace': Whitespace(iterator)
                                     }),
 
@@ -201,7 +201,7 @@ export const Trivia: p_.Production<
 
                                     }
                                     ),
-                                    'range': create_range(iterator, { 'start character': $ }),
+                                    'range': create_range(iterator, { 'start character': first_slash }),
                                     'trailing whitespace': Whitespace(iterator)
                                 }),
 
@@ -228,7 +228,7 @@ export const Delimited_Text: p_.Production_With_Parameter<
     }
 > = (iterator, abort, $p) => {
     const $p_content = p_text_from_list(
-        iterator.build_list({
+        iterator.build_list_with_segments({
             has_more_items: ($) => $.code !== $p['end character'],
             handle: () => iterator.consume(
                 () => p_unreachable_code_path("has_more_items -> true"),
@@ -257,13 +257,13 @@ export const Delimited_Text: p_.Production_With_Parameter<
                     }
                     switch ($.code) {
                         case Character.line_feed: return $p['allow newlines']
-                            ? $.code
+                            ? p_.literal.list([$.code])
                             : abort({
                                 'expected': ['no end of line in text', null],
                                 'range': create_range(iterator, { 'start character': $p['start character'] }),
                             })
                         case Character.carriage_return: return $p['allow newlines']
-                            ? $.code
+                            ? p_.literal.list([$.code])
                             : abort({
                                 'expected': ['no end of line in text', null],
                                 'range': create_range(iterator, { 'start character': $p['start character'] }),
@@ -275,74 +275,72 @@ export const Delimited_Text: p_.Production_With_Parameter<
                             }),
                             ($) => {
                                 switch ($.code) {
-                                    case Character.quotation_mark: return Character.quotation_mark
-                                    case Character.apostrophe: return Character.apostrophe
-                                    case Character.backtick: return Character.backtick
-                                    case Character.reverse_solidus: return Character.reverse_solidus
-                                    case Character.solidus: return Character.solidus
+                                    case Character.quotation_mark: return p_.literal.list([Character.quotation_mark])
+                                    case Character.apostrophe: return p_.literal.list([Character.apostrophe])
+                                    case Character.backtick: return p_.literal.list([Character.backtick])
+                                    case Character.reverse_solidus: return p_.literal.list([Character.reverse_solidus])
+                                    case Character.solidus: return p_.literal.list([Character.solidus])
 
-                                    case Character.b: return Character.backspace
-                                    case Character.f: return Character.form_feed
-                                    case Character.n: return Character.line_feed
-                                    case Character.r: return Character.carriage_return
-                                    case Character.t: return Character.tab
-                                    case Character.u:
-                                        const r_unicode_code_unit: p_.Refiner<
-                                            number,
-                                            string,
-                                            p_schema.List<number>
-                                        > = ($, abort) => {
-                                            const characters = $
-                                            let result = 0
-                                            const amount_of_characters = p_t.from.list(characters).amount_of_items()
-
-                                            const get_character_at = (index: number): number => {
-                                                return characters.__deprecated_get_item_at(
-                                                    index,
-                                                    {
-                                                        out_of_bounds: () => p_unreachable_code_path("this function is only called with valid indices, so this should never happen"),
-                                                    }
-                                                )
-                                            }
-
-                                            for (let i = 0; i < amount_of_characters; i++) {
-                                                const charCode = get_character_at(i)
-                                                let digit: number
-
-                                                if (charCode >= 48 && charCode <= 57) { // '0'-'9'
-                                                    digit = charCode - 48
-                                                } else if (charCode >= 65 && charCode <= 70) { // 'A'-'F'
-                                                    digit = charCode - 65 + 10
-                                                } else if (charCode >= 97 && charCode <= 102) { // 'a'-'f'
-                                                    digit = charCode - 97 + 10
+                                    case Character.b: return p_.literal.list([Character.backspace])
+                                    case Character.f: return p_.literal.list([Character.form_feed])
+                                    case Character.n: return p_.literal.list([Character.line_feed])
+                                    case Character.r: return p_.literal.list([Character.carriage_return])
+                                    case Character.t: return p_.literal.list([Character.tab])
+                                    case Character.u: {
+                                        const unicode_escape_error = (found: p_schema.Optional_Value<number>): never => abort({
+                                            'range': create_range(iterator, { 'start character': $p['start character'] }),
+                                            'expected': ['unicode character', { 'found': found }]
+                                        })
+                                        const hexadecimal_digit = (): number => iterator.consume(
+                                            () => unicode_escape_error(p_.literal.not_set()),
+                                            ($) => {
+                                                if ($.code >= 0x30 && $.code <= 0x39) {
+                                                    return $.code - 0x30
+                                                } else if ($.code >= 0x41 && $.code <= 0x46) {
+                                                    return $.code - 0x41 + 10
+                                                } else if ($.code >= 0x61 && $.code <= 0x66) {
+                                                    return $.code - 0x61 + 10
                                                 } else {
-                                                    return abort("Invalid hexadecimal digit in Unicode escape")
+                                                    return unicode_escape_error(p_.literal.set($.code))
                                                 }
-
-                                                result = result * 16 + digit
-                                            }
-
-                                            return result
+                                            },
+                                        )
+                                        // Four hexadecimal digits represent one UTF-16 code unit.
+                                        const code_unit = (): number => {
+                                            const first = hexadecimal_digit()
+                                            const second = hexadecimal_digit()
+                                            const third = hexadecimal_digit()
+                                            const fourth = hexadecimal_digit()
+                                            return ((first * 16 + second) * 16 + third) * 16 + fourth
                                         }
-                                        const consume_char = (): number => iterator.consume(
-                                            ($) => abort({
-                                                'range': create_range(iterator, { 'start character': $p['start character'] }),
-                                                'expected': ['unicode character', { 'found': p_.literal.not_set() }]
-                                            }),
-                                            ($) => $.code,
+                                        const is_high_surrogate = ($: number): boolean => $ >= 0xD800 && $ <= 0xDBFF
+                                        const is_low_surrogate = ($: number): boolean => $ >= 0xDC00 && $ <= 0xDFFF
+                                        const lone_surrogate = (found: number): never => abort({
+                                            'range': create_range(iterator, { 'start character': $p['start character'] }),
+                                            'expected': ['surrogate pair', { 'found': found }]
+                                        })
+                                        const is_character = (offset: number, character: number): boolean => iterator.peek_ahead(
+                                            offset,
+                                            () => false,
+                                            ($) => $.code === character,
                                         )
-                                        return r_unicode_code_unit(
-                                            p_.literal.list([
-                                                consume_char(),
-                                                consume_char(),
-                                                consume_char(),
-                                                consume_char()
-                                            ]),
-                                            ($) => abort({
-                                                'range': create_range(iterator, { 'start character': $p['start character'] }),
-                                                'expected': ['unicode character', { 'found': p_.literal.set(42) }] //FIXME: should be unicode *value*
-                                            })
-                                        )
+                                        const unit = code_unit()
+                                        if (is_low_surrogate(unit)) {
+                                            return lone_surrogate(unit)
+                                        }
+                                        if (!is_high_surrogate(unit)) {
+                                            return p_.literal.list([unit])
+                                        }
+                                        if (!is_character(0, Character.reverse_solidus) || !is_character(1, Character.u)) {
+                                            return lone_surrogate(unit)
+                                        }
+                                        iterator.consume(() => p_unreachable_code_path("peeked: \\"), () => null)
+                                        iterator.consume(() => p_unreachable_code_path("peeked: u"), () => null)
+                                        const low = code_unit()
+                                        return is_low_surrogate(low)
+                                            ? p_.literal.list([unit, low])
+                                            : lone_surrogate(unit)
+                                    }
                                     default: return abort({
                                         'range': create_range(iterator, { 'start character': $p['start character'] }),
                                         'expected': ['escape character', {
@@ -352,7 +350,7 @@ export const Delimited_Text: p_.Production_With_Parameter<
                                 }
                             },
                         )
-                        default: return $.code
+                        default: return p_.literal.list([$.code])
                     }
                 },
             ),
@@ -518,7 +516,7 @@ export const Tokenizer_Result: p_.Production_With_Parameter<
                                         {
                                             'start character': $,
                                             'end character': Character.backtick,
-                                            'allow newlines': false,
+                                            'allow newlines': true,
                                         }
                                     ),
                                     'type': ['backticked', null],
@@ -533,7 +531,7 @@ export const Tokenizer_Result: p_.Production_With_Parameter<
                                         {
                                             'start character': $,
                                             'end character': Character.apostrophe,
-                                            'allow newlines': false,
+                                            'allow newlines': true,
                                         }
                                     ),
                                     'type': ['apostrophed', null],

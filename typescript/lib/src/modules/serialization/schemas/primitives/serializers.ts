@@ -34,7 +34,9 @@ namespace declarations {
 
 export const Escaped: p_.Serializer<
     s_in.Escaped
-> = ($) => p_.ph.list_of_characters(p_.from.list(p_list_from_text(
+> = ($) => Escaped_With_Delimiter($, 0x22)
+
+const Escaped_With_Delimiter = ($: string, delimiter: number): string => p_.ph.list_of_characters(p_.from.list(p_list_from_text(
     $,
     ($) => $
 )).flatten(
@@ -46,11 +48,6 @@ export const Escaped: p_.Serializer<
             //         0x5c, // \
             //         0x2f, // /
             //     ])
-            case 0x22: // " (\")
-                return p_.literal.list([
-                    0x5C, // \
-                    0x22, // "
-                ])
             case 0x5C: // \ (\\)
                 return p_.literal.list([
                     0x5C, // \
@@ -81,14 +78,18 @@ export const Escaped: p_.Serializer<
                     0x5C, // \
                     0x74, // t
                 ])
-            case 0x0B: // vertical tab (\v)
-                return p_.literal.list([
-                    0x5C, // \
-                    0x76, // v
-                ])
-            default: return p_.literal.list([
-                $,
-            ])
+            default:
+                if ($ < 0x20) {
+                    const low = $ & 0x0F
+                    return p_.literal.list([
+                        0x5C, 0x75, 0x30, 0x30,
+                        0x30 + ($ >> 4),
+                        low < 10 ? 0x30 + low : 0x41 + low - 10,
+                    ])
+                }
+                return $ === delimiter
+                    ? p_.literal.list([0x5C, $])
+                    : p_.literal.list([$])
         }
     }
 )
@@ -105,25 +106,25 @@ export const Quoted: declarations.Quoted = ($, $p) => $p['add delimiters']
 export const ID: declarations.Apostrophed = ($, $p) => $p['add delimiters']
     ? p_.ph.composed([
         p_.ph.literal("'"),
-        Escaped($),
+        Escaped_With_Delimiter($, 0x27),
         p_.ph.literal("'"),
     ])
-    : Escaped($)
+    : Escaped_With_Delimiter($, 0x27)
 
 export const Apostrophed: declarations.Apostrophed = ($, $p) => $p['add delimiters']
     ? p_.ph.composed([
         p_.ph.literal("'"),
-        Escaped($),
+        Escaped_With_Delimiter($, 0x27),
         p_.ph.literal("'"),
     ])
-    : Escaped($)
+    : Escaped_With_Delimiter($, 0x27)
 
 export const Backticked: declarations.Backticked = ($, $p) => $p['add delimiters']
     ? p_.ph.composed([
         p_.ph.literal("`"),
-        Escaped($),
+        Escaped_With_Delimiter($, 0x60),
         p_.ph.literal("`"),
     ])
-    : Escaped($)
+    : Escaped_With_Delimiter($, 0x60)
 
 export const Undelimited: declarations.Undelimited = ($) => $ //FIXME: this needs escaping of the operator characters and whitespace

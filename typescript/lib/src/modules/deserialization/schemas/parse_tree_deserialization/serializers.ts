@@ -4,6 +4,7 @@ import p_text_from_list from 'pareto-core/transformer/specials/text_from_list'
 //schemas
 import * as s_out from "pareto-fountain-pen/modules/rich_phrase/schemas/rich_phrase/schema"
 import type * as s_in from "./schema.js"
+import type * as s_location from "../location/schema.js"
 
 namespace declarations {
     export type Error = p_.Serializer<
@@ -24,10 +25,17 @@ export const Error: declarations.Error = ($) => {
                 case 'lexer': return p_.option($, ($) => p_.from.state($.expected).decide(
                     ($) => {
                         switch ($[0]) {
-                            case 'unicode character': return sh.ph.text("found invalid unicode escape sequence")
+                            case 'unicode character': return p_.option($, ($) => sh.ph.composed([
+                                sh.ph.text("hexadecimal digit in unicode escape sequence, but found "),
+                                p_.from.optional($.found).decide(
+                                    ($) => sh.ph.text(p_text_from_list(p_.literal.list([$]), ($) => $)),
+                                    () => sh.ph.text("nothing"),
+                                ),
+                            ]))
+                            case 'surrogate pair': return p_.option($, ($) => sh.ph.text(`surrogate pair in unicode escape sequences, but found lone surrogate \\u${Hexadecimal_Code_Unit($.found)}`))
                             case 'no end of line in text': return p_.option($, ($) => sh.ph.text("no end of line in text"))
                             case 'escape character': return p_.option($, ($) => sh.ph.composed([
-                                sh.ph.text("escape character (), but found "),
+                                sh.ph.text("escape character (one of \" ' ` \\ / b f n r t u), but found "),
                                 p_.from.optional($.found).decide(
                                     ($) => sh.ph.text(
                                         p_text_from_list(
@@ -92,7 +100,37 @@ export const Error: declarations.Error = ($) => {
             }
         })
     return ser_rich_phrase.Phrase(sh.ph.composed([
+        sh.ph.text(Position($)),
+        sh.ph.text(": "),
         sh.ph.text("failed to parse ASTN: "),
         Parse_Error_Type($['type']),
     ]))
 }
+
+const Location = ($: s_location.Location): string => `${$.relative.line + 1}:${$.relative.column + 1}`
+
+const Position = ($: s_in.Error): string => p_.from.state($.type).decide(
+    ($) => {
+        switch ($[0]) {
+            case 'lexer': return p_.option($, ($) => `${Location($.range.start)}-${Location($.range.end)}`)
+            case 'parser': return p_.option($, ($) => p_.from.state($.cause).decide(
+                ($) => {
+                    switch ($[0]) {
+                        case 'missing token': return p_.option($, ($) => Location($.end))
+                        case 'unexpected token': return p_.option($, ($) => `${Location($.found.start)}-${Location($.found.end)}`)
+                        default: return p_.exhaustive($[0])
+                    }
+                }))
+            default: return p_.exhaustive($[0])
+        }
+    })
+
+const Hexadecimal_Code_Unit = ($: number): string => p_text_from_list(
+    p_.literal.list([
+        (($ - $ % 4096) / 4096) % 16,
+        (($ - $ % 256) / 256) % 16,
+        (($ - $ % 16) / 16) % 16,
+        $ % 16,
+    ]),
+    ($) => $ < 10 ? 0x30 + $ : 0x41 - 10 + $,
+)
